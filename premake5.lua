@@ -69,9 +69,11 @@ project "NVRHI-Vulkan"
         "src/vulkan/**.cpp",
     }
 
+    VULKAN_SDK = os.getenv("VULKAN_SDK")
+
     includedirs {
         "include",
-        "thirdparty/Vulkan-Headers/include"
+        "%{VULKAN_SDK}/include"
     }
 
     defines {
