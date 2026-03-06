@@ -548,6 +548,11 @@ namespace nvrhi::d3d11
             dimension = desc.dimension;
         }
 
+        if (subresources.baseArraySlice != 0 && dimension == TextureDimension::Texture2D)
+        {
+            dimension = TextureDimension::Texture2DArray;
+        }
+
         subresources = subresources.resolve(desc, false);
 
         RefCountPtr<ID3D11ShaderResourceView>& srvPtr = m_ShaderResourceViews[TextureBindingKey(subresources, format)];
@@ -807,6 +812,11 @@ namespace nvrhi::d3d11
         if (dimension == TextureDimension::Unknown)
         {
             dimension = desc.dimension;
+        }
+
+        if (subresources.baseArraySlice != 0 && dimension == TextureDimension::Texture2D)
+        {
+			dimension = TextureDimension::Texture2DArray;
         }
 
         subresources = subresources.resolve(desc, true);
