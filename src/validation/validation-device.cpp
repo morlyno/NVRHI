@@ -1509,10 +1509,13 @@ namespace nvrhi::validation
         return m_Device->createBindlessLayout(desc);
     }
 
-    static bool textureDimensionsCompatible(TextureDimension resourceDimension, TextureDimension viewDimension)
+    static bool textureDimensionsCompatible(TextureDimension resourceDimension, TextureDimension viewDimension, ArraySlice numArraySlices)
     {
         if (resourceDimension == viewDimension)
             return true;
+
+		if (viewDimension == TextureDimension::Texture2D && numArraySlices == 1)
+			return resourceDimension == TextureDimension::Texture2DArray || resourceDimension == TextureDimension::TextureCube;
 
         if (resourceDimension == TextureDimension::Texture3D)
             return viewDimension == TextureDimension::Texture2DArray;
@@ -1631,7 +1634,7 @@ namespace nvrhi::validation
 
             if (binding.dimension != TextureDimension::Unknown)
             {
-                if (!textureDimensionsCompatible(desc.dimension, binding.dimension))
+                if (!textureDimensionsCompatible(desc.dimension, binding.dimension, subresources.numArraySlices))
                 {
                     errorStream << "Requested binding dimension (" << utils::TextureDimensionToString(binding.dimension) << ") "
                         "is incompatible with the dimension (" << utils::TextureDimensionToString(desc.dimension) << ") "
