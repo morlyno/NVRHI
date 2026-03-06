@@ -601,6 +601,8 @@ namespace nvrhi::vulkan
             .setBaseMipLevel(subresources.baseMipLevel)
             .setLevelCount(subresources.numMipLevels);
         
+        m_CurrentCmdBuf->referencedResources.push_back(texture);
+
         m_CurrentCmdBuf->cmdBuf.clearColorImage(texture->image,
             vk::ImageLayout::eTransferDstOptimal,
             &clearValue,
@@ -650,6 +652,8 @@ namespace nvrhi::vulkan
             .setLayerCount(subresources.numArraySlices)
             .setBaseMipLevel(subresources.baseMipLevel)
             .setLevelCount(subresources.numMipLevels);
+
+		m_CurrentCmdBuf->referencedResources.push_back(texture);
 
         auto clearValue = vk::ClearDepthStencilValue(depth, uint32_t(stencil));
         m_CurrentCmdBuf->cmdBuf.clearDepthStencilImage(texture->image,
