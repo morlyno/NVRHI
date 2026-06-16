@@ -511,7 +511,7 @@ namespace nvrhi::validation
             bool setIsBindless = (sets[index]->getDesc() == nullptr);
             bool expectedBindless = expectedLayout->getBindlessDesc();
 
-            if (!expectedBindless && setLayout != expectedLayout)
+            if (!expectedBindless && setLayout != expectedLayout && *setLayout->getDesc() != *expectedLayout->getDesc())
             {
                 std::stringstream ss;
                 ss << "Binding set in slot " << index << " does not match the layout in pipeline slot " << index;

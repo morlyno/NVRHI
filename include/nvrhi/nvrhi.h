@@ -1973,6 +1973,15 @@ namespace nvrhi
         uint32_t constantBuffer = 256;
         uint32_t unorderedAccess = 384;
 
+		bool operator ==(const VulkanBindingOffsets& other) const
+		{
+			return shaderResource == other.shaderResource
+				&& sampler == other.sampler
+				&& constantBuffer == other.constantBuffer
+				&& unorderedAccess == other.unorderedAccess;
+		}
+		bool operator !=(const VulkanBindingOffsets& other) const { return !(*this == other); }
+
         constexpr VulkanBindingOffsets& setShaderResourceOffset(uint32_t value) { shaderResource = value; return *this; }
         constexpr VulkanBindingOffsets& setSamplerOffset(uint32_t value) { sampler = value; return *this; }
         constexpr VulkanBindingOffsets& setConstantBufferOffset(uint32_t value) { constantBuffer = value; return *this; }
@@ -2004,6 +2013,22 @@ namespace nvrhi
 
         std::vector<BindingLayoutItem> bindings;
         VulkanBindingOffsets bindingOffsets;
+
+		bool operator ==(const BindingLayoutDesc& other) const
+		{
+            if (visibility != other.visibility ||
+                registerSpace != other.registerSpace ||
+                registerSpaceIsDescriptorSet != other.registerSpaceIsDescriptorSet ||
+                bindings.size() != other.bindings.size() ||
+                bindingOffsets != other.bindingOffsets)
+                return false;
+
+            for (size_t i = 0; i < bindings.size(); i++)
+                if (bindings[i] != other.bindings[i])
+                    return false;
+            return true;
+		}
+		bool operator !=(const BindingLayoutDesc& other) const { return !(*this == other); }
 
         BindingLayoutDesc& setVisibility(ShaderType value) { visibility = value; return *this; }
         BindingLayoutDesc& setRegisterSpace(uint32_t value) { registerSpace = value; return *this; }
