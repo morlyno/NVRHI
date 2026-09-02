@@ -229,6 +229,7 @@ namespace nvrhi::d3d12
 
         const bool updatePipeline = !m_CurrentMeshletStateValid || m_CurrentMeshletState.pipeline != state.pipeline;
         const bool updateIndirectParams = !m_CurrentMeshletStateValid || m_CurrentMeshletState.indirectParams != state.indirectParams;
+        const bool updateIndirectCountBuffer = !m_CurrentMeshletStateValid || m_CurrentMeshletState.indirectCountBuffer != state.indirectCountBuffer;
 
         const bool updateViewports = !m_CurrentMeshletStateValid ||
             arraysAreDifferent(m_CurrentMeshletState.viewport.viewports, state.viewport.viewports) ||
@@ -273,7 +274,15 @@ namespace nvrhi::d3d12
             m_Instance->referencedResources.push_back(framebuffer);
         }
 
-        setGraphicsBindings(state.bindings, bindingUpdateMask, state.indirectParams, updateIndirectParams, pso->rootSignature);
+        if (m_EnableAutomaticBarriers && framebuffer && (m_BindingStatesDirty || updateFramebuffer))
+        {
+            setResourceStatesForFramebuffer(framebuffer);
+        }
+        
+        setGraphicsBindings(state.bindings, bindingUpdateMask,
+            state.indirectParams, updateIndirectParams,
+            state.indirectCountBuffer, updateIndirectCountBuffer,
+            pso->rootSignature);
         
         commitBarriers();
 
@@ -300,6 +309,7 @@ namespace nvrhi::d3d12
         m_CurrentRayTracingStateValid = false;
         m_CurrentMeshletState = state;
         m_CurrentMeshletState.dynamicStencilRefValue = effectiveStencilRefValue;
+        m_BindingStatesDirty = false;
     }
 
     void CommandList::dispatchMesh(uint32_t groupsX, uint32_t groupsY /*= 1*/, uint32_t groupsZ /*= 1*/)
@@ -307,5 +317,33 @@ namespace nvrhi::d3d12
         updateGraphicsVolatileBuffers();
 
         m_ActiveCommandList->commandList6->DispatchMesh(groupsX, groupsY, groupsZ);
+    }
+
+    void CommandList::dispatchMeshIndirect(uint32_t offsetBytes, uint32_t maxDrawCount)
+    {
+        Buffer* indirectParams = checked_cast<Buffer*>(m_CurrentMeshletState.indirectParams);
+        assert(indirectParams);
+
+        updateGraphicsVolatileBuffers();
+        
+        m_ActiveCommandList->commandList->ExecuteIndirect(m_Context.dispatchMeshIndirectSignature, maxDrawCount, indirectParams->resource, offsetBytes, nullptr, 0);
+    }
+
+    void CommandList::dispatchMeshIndirectCount(uint32_t paramOffsetBytes, uint32_t countOffsetBytes, uint32_t maxDrawCount)
+    {
+        Buffer* paramBuffer = checked_cast<Buffer*>(m_CurrentMeshletState.indirectParams);
+        Buffer* countBuffer = checked_cast<Buffer*>(m_CurrentMeshletState.indirectCountBuffer);
+        assert(paramBuffer);
+        assert(countBuffer);
+
+        updateGraphicsVolatileBuffers();
+
+        m_ActiveCommandList->commandList->ExecuteIndirect(
+            m_Context.dispatchMeshIndirectSignature,
+            maxDrawCount,
+            paramBuffer->resource,
+            paramOffsetBytes,
+            countBuffer->resource,
+            countOffsetBytes);
     }
 } // namespace nvrhi::d3d12

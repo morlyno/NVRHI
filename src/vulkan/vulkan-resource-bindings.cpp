@@ -181,7 +181,25 @@ namespace nvrhi::vulkan
             .setBindingCount(uint32_t(vulkanLayoutBindings.size()))
             .setPBindings(vulkanLayoutBindings.data());
 
-        std::vector<vk::DescriptorBindingFlags> bindFlag(vulkanLayoutBindings.size(), vk::DescriptorBindingFlagBits::ePartiallyBound);
+        // Tables are CPU-written while in-flight command buffers bind them, which needs
+        // UPDATE_AFTER_BIND. Uniform buffers take their own feature, which the app may not have enabled.
+        std::vector<vk::DescriptorBindingFlags> bindFlag(vulkanLayoutBindings.size(),
+            vk::DescriptorBindingFlags(vk::DescriptorBindingFlagBits::ePartiallyBound));
+
+        if (isBindless)
+        {
+            descriptorSetLayoutInfo.setFlags(vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool);
+
+            for (size_t i = 0; i < vulkanLayoutBindings.size(); ++i)
+            {
+                if (vulkanLayoutBindings[i].descriptorType == vk::DescriptorType::eUniformBuffer
+                    && !m_Context.descriptorBindingUniformBufferUpdateAfterBind)
+                    continue;
+
+                bindFlag[i] |= vk::DescriptorBindingFlagBits::eUpdateAfterBind
+                    | vk::DescriptorBindingFlagBits::eUpdateUnusedWhilePending;
+            }
+        }
 
         auto extendedInfo = vk::DescriptorSetLayoutBindingFlagsCreateInfo()
             .setBindingCount(uint32_t(vulkanLayoutBindings.size()))
@@ -383,12 +401,24 @@ namespace nvrhi::vulkan
 
                 const auto subresource = binding.subresources.resolve(texture->desc, false);
                 const auto textureViewType = getTextureViewType(binding.format, texture->desc.format);
-                auto& view = texture->getSubresourceView(subresource, binding.dimension, binding.format, vk::ImageUsageFlagBits::eSampled, textureViewType);
+                auto& view = texture->getSubresourceView(subresource, binding.dimension, binding.format, vk::ImageUsageFlagBits::eSampled, textureViewType,
+                    resolveComponentMapping(binding.overrideComponentMapping, texture->desc.defaultComponentMapping));
+
+                // Depth textures bound as SRV must use eDepthStencilReadOnlyOptimal because they may
+                // simultaneously be bound as a read-only depth-stencil attachment (DSV). Vulkan requires
+                // the image layout declared in the descriptor to match the actual image layout, and
+                // eDepthStencilReadOnlyOptimal is compatible with both depth attachment reads and
+                // shader sampling, whereas eShaderReadOnlyOptimal is not valid for depth images in
+                // that combined usage.
+                const FormatInfo& texFormatInfo = getFormatInfo(texture->desc.format);
+                const vk::ImageLayout srvLayout = (texFormatInfo.hasDepth || texFormatInfo.hasStencil)
+                    ? vk::ImageLayout::eDepthStencilReadOnlyOptimal
+                    : vk::ImageLayout::eShaderReadOnlyOptimal;
 
                 auto& imageInfo = descriptorImageInfo.emplace_back();
                 imageInfo = vk::DescriptorImageInfo()
                     .setImageView(view.view)
-                    .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+                    .setImageLayout(srvLayout);
 
                 generateWriteDescriptorData(
                     registerOffset + binding.slot,
@@ -594,6 +624,21 @@ namespace nvrhi::vulkan
                 utils::InvalidEnum();
                 break;
             }
+
+            // Update the hasUavBindings flag, it's cleaner to do it as a separate switch.
+            switch (binding.type)
+            {
+            case ResourceType::Texture_UAV:
+            case ResourceType::TypedBuffer_UAV:
+            case ResourceType::StructuredBuffer_UAV:
+            case ResourceType::RawBuffer_UAV:
+            case ResourceType::SamplerFeedbackTexture_UAV:
+                ret->hasUavBindings = true;
+                break;
+            default:
+                break;
+            }
+
         }
 
         m_Context.device.updateDescriptorSets(uint32_t(descriptorWriteInfo.size()), descriptorWriteInfo.data(), 0, nullptr);
@@ -635,10 +680,12 @@ namespace nvrhi::vulkan
         const auto& descriptorSetLayout = layout->descriptorSetLayout;
         const auto& poolSizes = layout->descriptorPoolSizeInfo;
 
-        // create descriptor pool to allocate a descriptor from
+        // create descriptor pool to allocate a descriptor from.
+        // The flag must match the layout's eUpdateAfterBindPool (see BindingLayout::bake).
         auto poolInfo = vk::DescriptorPoolCreateInfo()
             .setPoolSizeCount(uint32_t(poolSizes.size()))
             .setPPoolSizes(poolSizes.data())
+            .setFlags(vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind)
             .setMaxSets(1);
 
         vk::Result res = m_Context.device.createDescriptorPool(&poolInfo,
@@ -740,12 +787,18 @@ namespace nvrhi::vulkan
 
                 const auto subresource = binding.subresources.resolve(texture->desc, false);
                 const auto textureViewType = getTextureViewType(binding.format, texture->desc.format);
-                auto& view = texture->getSubresourceView(subresource, binding.dimension, binding.format, vk::ImageUsageFlagBits::eSampled, textureViewType);
+                auto& view = texture->getSubresourceView(subresource, binding.dimension, binding.format, vk::ImageUsageFlagBits::eSampled, textureViewType,
+                    resolveComponentMapping(binding.overrideComponentMapping, texture->desc.defaultComponentMapping));
+
+                const FormatInfo& texFormatInfo = getFormatInfo(texture->desc.format);
+                const vk::ImageLayout srvLayout = (texFormatInfo.hasDepth || texFormatInfo.hasStencil)
+                    ? vk::ImageLayout::eDepthStencilReadOnlyOptimal
+                    : vk::ImageLayout::eShaderReadOnlyOptimal;
 
                 auto& imageInfo = descriptorImageInfo.emplace_back();
                 imageInfo = vk::DescriptorImageInfo()
                     .setImageView(view.view)
-                    .setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal);
+                    .setImageLayout(srvLayout);
 
                 generateWriteDescriptorData(layoutBinding.binding,
                     convertResourceType(binding.type),

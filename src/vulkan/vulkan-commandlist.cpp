@@ -91,6 +91,8 @@ namespace nvrhi::vulkan
         clearState();
 
         flushVolatileBufferWrites();
+        
+        m_UncachedShaderTableStates.clear();
     }
 
     void CommandList::clearState()
@@ -104,7 +106,6 @@ namespace nvrhi::vulkan
         m_CurrentComputeState = ComputeState();
         m_CurrentMeshletState = MeshletState();
         m_CurrentRayTracingState = rt::State();
-        m_CurrentShaderTablePointers = ShaderTableState();
 
         m_AnyVolatileBufferWrites = false;
 
@@ -121,8 +122,7 @@ namespace nvrhi::vulkan
     void CommandList::executed(Queue& queue, const uint64_t submissionID)
     {
         assert(m_CurrentCmdBuf);
-
-        m_CurrentCmdBuf->submissionID = submissionID;
+        assert(m_CurrentCmdBuf->submissionID == submissionID); // This is set in Queue::submit
 
         const CommandQueue queueID = queue.getQueueID();
         const uint64_t recordingID = m_CurrentCmdBuf->recordingID;
@@ -146,7 +146,7 @@ namespace nvrhi::vulkan
  
     void CommandList::convertCoopVecMatrices(coopvec::ConvertMatrixLayoutDesc const* convertDescs, size_t numDescs)
     {
-        if (!m_Context.extensions.NV_cooperative_vector)
+        if (!m_Context.extensions.NV_cooperative_vector || !m_Context.coopVecFeatures.cooperativeVector)
             return;
 
         if (numDescs == 0)
@@ -165,8 +165,12 @@ namespace nvrhi::vulkan
             if (desc.src.buffer == nullptr || desc.dst.buffer == nullptr)
                 continue;
             
-            requireBufferState(desc.src.buffer, ResourceStates::ConvertCoopVecMatrixInput);
-            requireBufferState(desc.dst.buffer, ResourceStates::ConvertCoopVecMatrixOutput);
+            if (m_EnableAutomaticBarriers)
+            {
+                requireBufferState(desc.src.buffer, ResourceStates::ConvertCoopVecMatrixInput);
+                requireBufferState(desc.dst.buffer, ResourceStates::ConvertCoopVecMatrixOutput);
+                m_BindingStatesDirty = true;
+            }
             
             vk::ConvertCooperativeVectorMatrixInfoNV& vkDesc = vkConvertDescs.emplace_back();
             vkDesc.sType = vk::StructureType::eConvertCooperativeVectorMatrixInfoNV;
