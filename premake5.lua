@@ -1,85 +1,91 @@
-project "NVRHI-D3D11"
-    kind "StaticLib"
-    language "C++"
-    cppdialect "C++20"
 
-    targetdir("bin/" .. outputdir .. "/%{prj.name}")
-    objdir("bin-int/" .. outputdir .. "/%{prj.name}")
+filter { "options:with-d3d11" }
+    project "NVRHI-D3D11"
+        kind "StaticLib"
+        language "C++"
+        cppdialect "C++20"
 
-    files {
-        "include/nvrhi/d3d11.h",
+        targetdir("bin/" .. outputdir .. "/%{prj.name}")
+        objdir("bin-int/" .. outputdir .. "/%{prj.name}")
 
-        "src/common/dxgi-format.h",
-        "src/common/dxgi-format.cpp",
+        files {
+            "include/nvrhi/d3d11.h",
 
-        "src/d3d11/**.h",
-        "src/d3d11/**.cpp"
-    }
+            "src/common/dxgi-format.h",
+            "src/common/dxgi-format.cpp",
 
-    includedirs {
-        "include"
-    }
+            "src/d3d11/**.h",
+            "src/d3d11/**.cpp"
+        }
 
-    defines {
-        "NOMINMAX"
-    }
+        includedirs {
+            "include"
+        }
 
-project "NVRHI-D3D12"
-    kind "StaticLib"
-    language "C++"
-    cppdialect "C++20"
+        defines {
+            "NOMINMAX"
+        }
 
-    targetdir("bin/" .. outputdir .. "/%{prj.name}")
-    objdir("bin-int/" .. outputdir .. "/%{prj.name}")
+filter { "options:with-d3d12"}
+    project "NVRHI-D3D12"
+        kind "StaticLib"
+        language "C++"
+        cppdialect "C++20"
 
-    files {
-        "include/nvrhi/d3d12.h",
+        targetdir("bin/" .. outputdir .. "/%{prj.name}")
+        objdir("bin-int/" .. outputdir .. "/%{prj.name}")
 
-        "src/common/dxgi-format.h",
-        "src/common/dxgi-format.cpp",
-        "src/common/versioning.h",
+        files {
+            "include/nvrhi/d3d12.h",
 
-        "src/d3d12/**.h",
-        "src/d3d12/**.cpp"
-    }
+            "src/common/dxgi-format.h",
+            "src/common/dxgi-format.cpp",
+            "src/common/versioning.h",
 
-    includedirs {
-        "include",
-        "thirdparty/DirectX-Headers/include"
-    }
+            "src/d3d12/**.h",
+            "src/d3d12/**.cpp"
+        }
 
-    defines {
-        "NOMINMAX"
-    }
+        includedirs {
+            "include",
+            "thirdparty/DirectX-Headers/include"
+        }
 
-project "NVRHI-Vulkan"
-    kind "StaticLib"
-    language "C++"
-    cppdialect "C++20"
+        defines {
+            "NOMINMAX"
+        }
 
-    targetdir("bin/" .. outputdir .. "/%{prj.name}")
-    objdir("bin-int/" .. outputdir .. "/%{prj.name}")
+filter { "options:with-vulkan" }
+    project "NVRHI-Vulkan"
+        kind "StaticLib"
+        language "C++"
+        cppdialect "C++20"
 
-    files {
-        "include/nvrhi/vulkan.h",
+        targetdir("bin/" .. outputdir .. "/%{prj.name}")
+        objdir("bin-int/" .. outputdir .. "/%{prj.name}")
 
-        "src/common/versioning.h",
+        files {
+            "include/nvrhi/vulkan.h",
 
-        "src/vulkan/**.h",
-        "src/vulkan/**.cpp",
-    }
+            "src/common/versioning.h",
 
-    VULKAN_SDK = os.getenv("VULKAN_SDK")
+            "src/vulkan/**.h",
+            "src/vulkan/**.cpp",
+        }
 
-    includedirs {
-        "include",
-        "%{VULKAN_SDK}/include"
-    }
+        VULKAN_SDK = os.getenv("VULKAN_SDK")
 
-    defines {
-        "VK_USE_PLATFORM_WIN32_KHR",
-        "NOMINMAX"
-    }
+        includedirs {
+            "include",
+            "%{VULKAN_SDK}/include"
+        }
+
+        defines {
+            "VK_USE_PLATFORM_WIN32_KHR",
+            "NOMINMAX"
+        }
+
+filter {}
 
 project "NVRHI"
     kind "StaticLib"
@@ -116,8 +122,9 @@ project "NVRHI"
         "NOMINMAX"
     }
 
-    links {
-        "NVRHI-D3D11",
-        "NVRHI-D3D12",
-        "NVRHI-Vulkan",
-    }
+    filter { "options:with-d3d11" }
+        links { "NVRHI-D3D11" }
+    filter { "options:with-d3d12" }
+        links { "NVRHI-D3D12" }
+    filter { "options:with-vulkan" }
+        links { "NVRHI-Vulkan" }
